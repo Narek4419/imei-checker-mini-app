@@ -8,13 +8,13 @@
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--tg-theme-bg-color); /* Telegram theme background */
-            color: var(--tg-theme-text-color); /* Telegram theme text color */
+            background-color: var(--tg-theme-bg-color);
+            color: var(--tg-theme-text-color);
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start; /* Align content to top */
             align-items: center;
-            height: 100vh;
+            min-height: 100vh; /* Use min-height for scrollable content */
             margin: 0;
             padding: 20px;
             box-sizing: border-box;
@@ -27,6 +27,7 @@
             text-align: center;
             width: 100%;
             max-width: 400px;
+            margin-bottom: 20px; /* Space from bottom if content overflows */
         }
         h1 {
             color: var(--tg-theme-text-color);
@@ -61,20 +62,31 @@
         button:hover {
             opacity: 0.9;
         }
-        #result {
-            margin-top: 20px;
-            font-size: 1em;
-            color: var(--tg-theme-text-color);
-            white-space: pre-wrap; /* Preserve formatting for results */
-            text-align: left;
-            word-break: break-word; /* Break long words */
+        button:disabled {
+            background-color: var(--tg-theme-hint-color);
+            cursor: not-allowed;
+            opacity: 0.7;
         }
         #loading {
             margin-top: 15px;
             font-size: 0.9em;
             color: var(--tg-theme-hint-color);
-            display: none; /* Hidden by default */
+            display: none;
         }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            background-color: var(--tg-theme-field-background-color);
+            color: var(--tg-theme-text-color);
+            text-align: left;
+            white-space: pre-wrap; /* Preserve line breaks */
+            word-break: break-word; /* Break long words */
+            font-size: 1em;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .success { border: 1px solid var(--tg-theme-link-color); }
+        .error { border: 1px solid var(--tg-theme-destructive-text-color); }
     </style>
 </head>
 <body>
@@ -87,64 +99,207 @@
     </div>
 
     <script>
-        // Initialize Telegram Web App
         Telegram.WebApp.ready();
         Telegram.WebApp.expand(); // Expand the web app to full screen
+
+        // Set theme colors
+        document.body.style.backgroundColor = Telegram.WebApp.themeParams.bg_color;
+        document.body.style.color = Telegram.WebApp.themeParams.text_color;
 
         const imeiInput = document.getElementById('imeiInput');
         const checkButton = document.getElementById('checkButton');
         const resultDiv = document.getElementById('result');
         const loadingDiv = document.getElementById('loading');
 
+        let currentQueryId = null; // To store the query_id for the current request
+
         checkButton.addEventListener('click', () => {
             const imei = imeiInput.value.trim();
-            if (imei) {
-                loadingDiv.style.display = 'block'; // Show loading message
-                resultDiv.innerHTML = ''; // Clear previous results
-
-                // Send the IMEI to the bot
-                // We'll stringify it as JSON to send structured data
-                Telegram.WebApp.sendData(JSON.stringify({
-                    action: 'check_imei',
-                    imei: imei
-                }));
-
-                // After sending data, you might want to show a message to the user
-                // or await a response from the bot. For now, we'll let the bot
-                // send the final result back to the main chat.
-                // Telegram.WebApp.close(); // You might close it here if you want result in main chat
-                                          // but for better UX, we'll keep it open and display in #result
-            } else {
-                resultDiv.innerHTML = '<span style="color: red;">Please enter an IMEI.</span>';
+            if (!imei) {
+                displayResult('Please enter an IMEI.', 'error');
+                return;
             }
+
+            // Disable button and input during check
+            checkButton.disabled = true;
+            imeiInput.disabled = true;
+            loadingDiv.style.display = 'block';
+            resultDiv.innerHTML = ''; // Clear previous results
+            resultDiv.className = ''; // Clear previous styles
+
+            // Telegram Web App provides an initData object with user info and query_id
+            // We'll send this with the request to the bot.
+            const initData = Telegram.WebApp.initData;
+
+            // This is the data we send to the bot.
+            // The bot receives this via update.effective_message.web_app_data.data
+            // The `query_id` is crucial for the bot to answer the Web App directly.
+            Telegram.WebApp.sendData(JSON.stringify({
+                action: 'check_imei',
+                imei: imei,
+                initData: initData // Send initData for verification and query_id
+            }));
+            // After sending, we will now wait for the bot to send back the answerWebAppQuery.
+            // The bot won't send the result back to the main chat directly for this flow.
         });
 
-        // Event listener for when the bot sends data back to the Web App
-        // (This part is for future use, if your bot sends responses back to the Web App)
+        // This event is fired when the bot sends a response using answerWebAppQuery
+        Telegram.WebApp.onEvent('onInvoiceClosed', function(status) {
+            // This event is primarily for payments, not general data.
+            // We need a different mechanism for general data display.
+
+            // The correct way for the bot to send data *back* to the Web App for display
+            // is not a direct API call that triggers an 'onEvent' like this for arbitrary data.
+            // Instead, the bot's 'answerWebAppQuery' will return a result,
+            // and the web app's `Telegram.WebApp.sendData` implicitly handles getting the result.
+            // So, what we need to do is modify the bot to use `answerWebAppQuery`
+            // and the Web App (this JS) won't need a specific listener here for the result.
+
+            // Let's adjust the logic slightly: The 'sendData' call is one-way.
+            // To get results back *inside* the Web App, the bot needs to use
+            // `editMessageText` (or similar) on a message in the main chat, and
+            // that message would ideally contain a link to open the Web App again,
+            // or we close the Web App and show result in main chat, which is what we had.
+
+            // For truly displaying result *in the Web App* without another API call:
+            // The bot *cannot* directly trigger a JS function in the web app.
+            // The common approach is:
+            // 1. Web App sends data (via sendData).
+            // 2. Bot processes.
+            // 3. Bot sends *result as a new message* to the user in the main chat.
+            // This is how it was working before.
+
+            // To display IN THE WEB APP without polling:
+            // The `answerWebAppQuery` is specifically for Inline Queries initiated by the bot,
+            // not for data sent via `sendData`.
+
+            // New plan: The bot *will* send the formatted result back to the user in the main chat.
+            // But we can keep the Web App open and show a "Check complete, see chat" message,
+            // or a summary.
+
+            // Let's refine the idea for showing the result here.
+            // The simplest approach for displaying *dynamic content* within the Web App after a bot interaction
+            // that doesn't involve polling or setting up webhooks to the Web App itself is tricky.
+
+            // Option 1 (What we had): Bot sends result to main chat. Web App shows "Check complete." and closes.
+            // Option 2: Bot sends result to main chat. Web App stays open, user can do more.
+            // Option 3 (More complex): Your Python bot needs its *own* HTTP endpoint (webhook)
+            // that the Web App can *fetch* data from after `sendData`. This means setting up Flask/FastAPI
+            // in your Python bot. This is a significant added layer.
+
+            // Given your goal of "like a Telegram application", Option 3 is ideal but harder.
+            // Let's try a hybrid of Option 2 and Option 3, but simpler:
+            // The bot will send a message *to the user's chat* with the result.
+            // The Web App will show a "Check complete" message and then the user can check the chat.
+
+            // Let's adjust for the bot to send the result as an Inline Query result (using answerWebAppQuery)
+            // The `sendData` method also generates a `query_id` internally.
+
+        });
+
+        // New approach for receiving data back: Telegram.WebApp.onEvent('themeChanged') is for theme.
+        // There isn't a direct 'onDataReceivedFromBot' event for `sendData`.
+
+        // Instead, what the bot *can* do with `answerWebAppQuery` is send an `inline_query_id` back.
+        // This is typically for results of inline query bots, not Mini Apps data.
+
+        // Simpler solution: After `sendData`, the Web App will just wait for the bot to send
+        // a regular message. The user will then return to the main chat.
+
+        // To display results *in the Web App*, the most common reliable way for bots is
+        // 1. Web App sends IMEI.
+        // 2. Bot processes.
+        // 3. Bot sends *a message containing the result to the main chat*.
+        // 4. Optionally, the bot can *edit a message in the main chat* to show the result.
+        // The Web App itself can't directly read the bot's messages without polling.
+
+        // For truly showing the result IN THE WEB APP:
+        // You'd need a backend endpoint that the Web App can *fetch* from.
+        // So, your Python bot needs to expose a /results/<query_id> endpoint.
+
+        // This is more complex than initially thought for direct in-app display *without polling*.
+        // Let's simplify and make the Web App give better feedback and *close*
+        // or prompt the user to check the chat.
+
+        // ---- REVISED JAVASCRIPT LOGIC ----
+        // This will allow the bot to send result to the Web App itself using a Telegram.WebApp.onEvent('invoiceClosed') callback?
+        // No, that's not for general data.
+
+        // Okay, the standard way for a bot to send data back to a Web App
+        // that initiated a `sendData` call is *not* a public event that the JS can listen to.
+        // The `sendData` call essentially tells the bot "Hey, here's some data from the Web App."
+        // The bot then processes it and typically sends a message *to the main chat*.
+
+        // If you want the result *in the Web App itself*, you need a full client-server setup:
+        // 1. Web App sends IMEI to *your server's own API endpoint* (e.g., /imei_check).
+        // 2. Your server endpoint calls SICKW, processes.
+        // 3. Your server endpoint returns JSON result *directly to the Web App*.
+        // This means your `bot.py` has to become a web server itself (e.g., using Flask or FastAPI)
+        // and needs to be publicly accessible via a webhook.
+
+        // This is a much bigger leap than just modifying `bot.py` handlers.
+
+        // Let's stick to the simpler approach for now, but improve feedback in the Web App.
+        // The Web App sends data, and then it *closes itself*.
+        // The result is then shown in the main chat. This is a common pattern for simpler Mini Apps.
+
+        // ---- NEW PLAN FOR JS ----
+        // 1. On button click, send data.
+        // 2. Display "Processing..." in the Web App.
+        // 3. After sending data, *automatically close the Web App*.
+        // 4. The user then sees the result in the main chat.
+
+        checkButton.addEventListener('click', () => {
+            const imei = imeiInput.value.trim();
+            if (!imei) {
+                displayResult('Please enter an IMEI.', 'error');
+                return;
+            }
+
+            // Disable button and input during check
+            checkButton.disabled = true;
+            imeiInput.disabled = true;
+            loadingDiv.style.display = 'block';
+            resultDiv.innerHTML = ''; // Clear previous results
+            resultDiv.className = ''; // Clear previous styles
+
+            // Send the IMEI to the bot
+            Telegram.WebApp.sendData(JSON.stringify({
+                action: 'check_imei',
+                imei: imei
+            }));
+
+            // Inform user and then close the Web App
+            loadingDiv.innerHTML = 'Sending request. Check your chat with the bot for results...';
+            // You can add a slight delay before closing if you want the message to be seen
+            setTimeout(() => {
+                Telegram.WebApp.close();
+            }, 1500); // Close after 1.5 seconds
+        });
+
+        function displayResult(message, type) {
+            loadingDiv.style.display = 'none';
+            resultDiv.innerHTML = message;
+            resultDiv.className = type; // 'success' or 'error' for styling
+            checkButton.disabled = false;
+            imeiInput.disabled = false;
+        }
+
+        // Initially clear any default text in resultDiv
+        resultDiv.innerHTML = '';
+
+        // Handle Web App close event (not strictly necessary but good to know)
         Telegram.WebApp.onEvent('mainButtonClicked', function() {
-            // This is typically used for the MainButton, not the form submit button
-            // We'll use sendData on click of our custom button
+            // If you enabled the main button, this would trigger on click.
+            // We disabled it for a custom button.
         });
 
-        // Example of how the bot could send a result back to the web app
-        // For now, our bot will send result to main chat.
-        // If you want result inside web app, you'd need a different communication method (e.g., webhook)
-        // or for the bot to call Telegram.WebApp.sendData (but this is generally for *closing* data)
-
-        // For this initial setup, we will display the result in the main chat.
-        // Later, we can explore advanced methods to display it here.
-
-        // You can make the MainButton active, but we are using a custom button for simplicity now
-        // Telegram.WebApp.MainButton.setText("Send IMEI").show().onClick(() => {
-        //     const imei = imeiInput.value.trim();
-        //     if (imei) {
-        //         Telegram.WebApp.sendData(JSON.stringify({
-        //             action: 'check_imei',
-        //             imei: imei
-        //         }));
-        //     }
-        // });
-        // Telegram.WebApp.MainButton.hide(); // Hide the Telegram-provided main button for now
+        // Theme parameter listeners for dynamic styling (already handled by CSS vars)
+        Telegram.WebApp.onEvent('themeChanged', function() {
+            document.body.style.backgroundColor = Telegram.WebApp.themeParams.bg_color;
+            document.body.style.color = Telegram.WebApp.themeParams.text_color;
+            // You might need to re-apply other colors here if you use JS for them
+        });
     </script>
 </body>
 </html>
