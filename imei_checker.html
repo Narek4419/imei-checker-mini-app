@@ -115,7 +115,7 @@
         const checkButton = document.getElementById('checkButton');
         const resultDiv = document.getElementById('result');
         const loadingDiv = document.getElementById('loading');
-        const balanceDisplay = document.getElementById('balanceValue'); // New balance display
+        const balanceDisplay = document.getElementById('balanceValue');
         const addCreditsButton = document.getElementById('addCreditsButton');
 
         // --- Helper Functions ---
@@ -128,13 +128,10 @@
         }
 
         // --- Web App Event Handlers ---
-
-        // Request user's balance when the app loads
         function getBalance() {
             Telegram.WebApp.sendData(JSON.stringify({ action: 'request_balance' }));
         }
 
-        // Update the balance display
         function updateBalance(balance) {
             balanceDisplay.textContent = balance;
         }
@@ -177,24 +174,24 @@
 
         // --- Initial Setup ---
         resultDiv.innerHTML = '';
-        getBalance(); // Get balance when the Web App loads
+        getBalance();
 
-        // --- Data Handling from Bot ---
-        Telegram.WebApp.onEvent('dataReceived', (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.action === 'balance_update') {
-                    updateBalance(data.balance);
-                } else if (data.action === 'show_result') {
-                    displayResult(data.message, data.type);
-                }
-                 else if (data.action === 'initial_balance') {
-                    updateBalance(data.balance);
-                }
-            } catch (error) {
-                console.error('Error parsing data from bot:', error);
-            }
-        });
+        // --- Data Handling from Bot ---  <- REMOVE THIS ENTIRE SECTION
+        // Telegram.WebApp.onEvent('dataReceived', (event) => {
+        //     try {
+        //         const data = JSON.parse(event.data);
+        //         if (data.action === 'balance_update') {
+        //             updateBalance(data.balance);
+        //         } else if (data.action === 'show_result') {
+        //             displayResult(data.message, data.type);
+        //         }
+        //          else if (data.action === 'initial_balance') {
+        //             updateBalance(data.balance);
+        //         }
+        //     } catch (error) {
+        //         console.error('Error parsing data from bot:', error);
+        //     }
+        // });
     </script>
 </body>
 </html>
