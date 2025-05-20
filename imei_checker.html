@@ -12,9 +12,9 @@
             color: var(--tg-theme-text-color);
             display: flex;
             flex-direction: column;
-            justify-content: flex-start; /* Align content to top */
+            justify-content: flex-start;
             align-items: center;
-            min-height: 100vh; /* Use min-height for scrollable content */
+            min-height: 100vh;
             margin: 0;
             padding: 20px;
             box-sizing: border-box;
@@ -27,7 +27,7 @@
             text-align: center;
             width: 100%;
             max-width: 400px;
-            margin-bottom: 20px; /* Space from bottom if content overflows */
+            margin-bottom: 20px;
         }
         h1 {
             color: var(--tg-theme-text-color);
@@ -58,6 +58,7 @@
             cursor: pointer;
             transition: background-color 0.2s ease;
             width: 100%;
+            margin-bottom: 10px; /* Add space between buttons */
         }
         button:hover {
             opacity: 0.9;
@@ -80,48 +81,71 @@
             background-color: var(--tg-theme-field-background-color);
             color: var(--tg-theme-text-color);
             text-align: left;
-            white-space: pre-wrap; /* Preserve line breaks */
-            word-break: break-word; /* Break long words */
+            white-space: pre-wrap;
+            word-break: break-word;
             font-size: 1em;
             box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.1);
         }
         .success { border: 1px solid var(--tg-theme-link-color); }
         .error { border: 1px solid var(--tg-theme-destructive-text-color); }
+        #balance {
+            font-size: 1.1em;
+            margin-bottom: 20px;
+            color: var(--tg-theme-text-color);
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>IMEI Check</h1>
+        <div id="balance">Your Balance: <span id="balanceValue">Loading...</span> Credits</div>
         <input type="text" id="imeiInput" placeholder="Enter IMEI or Serial Number">
         <button id="checkButton">Check IMEI</button>
+        <button id="addCreditsButton">Add Credits</button>
         <div id="loading">Checking...</div>
         <div id="result"></div>
     </div>
 
     <script>
         Telegram.WebApp.ready();
-        Telegram.WebApp.expand(); // Expand the web app to full screen
+        Telegram.WebApp.expand();
 
-        // Set theme colors
-        document.body.style.backgroundColor = Telegram.WebApp.themeParams.bg_color;
-        document.body.style.color = Telegram.WebApp.themeParams.text_color;
-
+        // --- Get Elements ---
         const imeiInput = document.getElementById('imeiInput');
         const checkButton = document.getElementById('checkButton');
         const resultDiv = document.getElementById('result');
         const loadingDiv = document.getElementById('loading');
+        const balanceDisplay = document.getElementById('balanceValue'); // New balance display
+        const addCreditsButton = document.getElementById('addCreditsButton');
 
-        // MainButton will be used for "Show My Balance in Chat"
-        Telegram.WebApp.MainButton.setText("Show My Balance in Chat").show();
+        // --- Helper Functions ---
+        function displayResult(message, type) {
+            loadingDiv.style.display = 'none';
+            resultDiv.innerHTML = message;
+            resultDiv.className = type;
+            checkButton.disabled = false;
+            imeiInput.disabled = false;
+        }
 
-        Telegram.WebApp.MainButton.onClick(() => {
-            // Send a different action for balance request
-            Telegram.WebApp.sendData(JSON.stringify({
-                action: 'request_balance'
-            }));
-            Telegram.WebApp.close(); // Close after sending balance request
+        // --- Web App Event Handlers ---
+
+        // Request user's balance when the app loads
+        function getBalance() {
+            Telegram.WebApp.sendData(JSON.stringify({ action: 'request_balance' }));
+        }
+
+        // Update the balance display
+        function updateBalance(balance) {
+            balanceDisplay.textContent = balance;
+        }
+
+        // --- Telegram Web App Initialization ---
+        Telegram.WebApp.onEvent('themeChanged', () => {
+            document.body.style.backgroundColor = Telegram.WebApp.themeParams.bg_color;
+            document.body.style.color = Telegram.WebApp.themeParams.text_color;
         });
 
+        // --- Event Listeners ---
         checkButton.addEventListener('click', () => {
             const imei = imeiInput.value.trim();
             if (!imei) {
@@ -129,43 +153,47 @@
                 return;
             }
 
-            // Disable button and input during check
             checkButton.disabled = true;
             imeiInput.disabled = true;
             loadingDiv.style.display = 'block';
-            resultDiv.innerHTML = ''; // Clear previous results
-            resultDiv.className = ''; // Clear previous styles
+            resultDiv.innerHTML = '';
+            resultDiv.className = '';
 
-            // Send the IMEI to the bot
             Telegram.WebApp.sendData(JSON.stringify({
                 action: 'check_imei',
                 imei: imei
             }));
 
-            // Inform user and then close the Web App
             loadingDiv.innerHTML = 'Sending request. Check your chat with the bot for results...';
-            // You can add a slight delay before closing if you want the message to be seen
             setTimeout(() => {
                 Telegram.WebApp.close();
-            }, 1500); // Close after 1.5 seconds
+            }, 1500);
         });
 
-        function displayResult(message, type) {
-            loadingDiv.style.display = 'none';
-            resultDiv.innerHTML = message;
-            resultDiv.className = type; // 'success' or 'error' for styling
-            checkButton.disabled = false;
-            imeiInput.disabled = false;
-        }
+        addCreditsButton.addEventListener('click', () => {
+            Telegram.WebApp.sendData(JSON.stringify({ action: 'add_credits' }));
+            Telegram.WebApp.close();
+        });
 
-        // Initially clear any default text in resultDiv
+        // --- Initial Setup ---
         resultDiv.innerHTML = '';
+        getBalance(); // Get balance when the Web App loads
 
-        // Handle Theme changes (already applied via CSS vars, but good to have listener)
-        Telegram.WebApp.onEvent('themeChanged', function() {
-            document.body.style.backgroundColor = Telegram.WebApp.themeParams.bg_color;
-            document.body.style.color = Telegram.WebApp.themeParams.text_color;
-            // Additional styling updates can go here if needed
+        // --- Data Handling from Bot ---
+        Telegram.WebApp.onEvent('dataReceived', (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.action === 'balance_update') {
+                    updateBalance(data.balance);
+                } else if (data.action === 'show_result') {
+                    displayResult(data.message, data.type);
+                }
+                 else if (data.action === 'initial_balance') {
+                    updateBalance(data.balance);
+                }
+            } catch (error) {
+                console.error('Error parsing data from bot:', error);
+            }
         });
     </script>
 </body>
