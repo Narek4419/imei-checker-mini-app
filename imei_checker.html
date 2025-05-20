@@ -180,15 +180,9 @@
             imeiInput.disabled = false;
         }
 
-          // Function to update the balance display
-        function updateBalance(balance) {
-            balanceDisplay.textContent = balance;
-        }
+
 
         // --- Web App Event Handlers ---
-        function getBalance() {
-            Telegram.WebApp.sendData(JSON.stringify({ action: 'request_balance' }));
-        }
 
 
 
@@ -246,23 +240,8 @@
 
         // --- Initial Setup ---
         resultDiv.innerHTML = '';
-        getBalance();
 
-         Telegram.WebApp.onEvent('dataReceived', (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.action === 'balance_update') {
-                    updateBalance(data.balance);
-                } else if (data.action === 'show_result') {
-                    displayResult(data.message, data.type);
-                }
-                 else if (data.action === 'initial_balance') {
-                    updateBalance(data.balance);
-                }
-            } catch (error) {
-                console.error('Error parsing data from bot:', error);
-            }
-        });
+
     </script>
 </body>
 </html>
