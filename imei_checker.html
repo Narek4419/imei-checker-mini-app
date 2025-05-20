@@ -1,171 +1,36 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IMEI Checker</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--tg-theme-bg-color);
-            color: var(--tg-theme-text-color);
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start; /* Align content to top */
-            align-items: center;
-            min-height: 100vh; /* Use min-height for scrollable content */
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        .container {
-            background-color: var(--tg-theme-secondary-bg-color);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            text-align: center;
-            width: 100%;
-            max-width: 400px;
-            margin-bottom: 20px; /* Space from bottom if content overflows */
-        }
-        h1 {
-            color: var(--tg-theme-text-color);
-            margin-bottom: 20px;
-            font-size: 1.8em;
-        }
-        input[type="text"] {
-            width: calc(100% - 20px);
-            padding: 12px 10px;
-            margin-bottom: 20px;
-            border: 1px solid var(--tg-theme-hint-color);
-            border-radius: 8px;
-            background-color: var(--tg-theme-field-background-color);
-            color: var(--tg-theme-text-color);
-            font-size: 1.1em;
-            box-sizing: border-box;
-        }
-        input[type="text"]::placeholder {
-            color: var(--tg-theme-hint-color);
-        }
-        button {
-            background-color: var(--tg-theme-button-color);
-            color: var(--tg-theme-button-text-color);
-            border: none;
-            padding: 14px 25px;
-            border-radius: 8px;
-            font-size: 1.2em;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-            width: 100%;
-        }
-        button:hover {
-            opacity: 0.9;
-        }
-        button:disabled {
-            background-color: var(--tg-theme-hint-color);
-            cursor: not-allowed;
-            opacity: 0.7;
-        }
-        #loading {
-            margin-top: 15px;
-            font-size: 0.9em;
-            color: var(--tg-theme-hint-color);
-            display: none;
-        }
-        #result {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 10px;
-            background-color: var(--tg-theme-field-background-color);
-            color: var(--tg-theme-text-color);
-            text-align: left;
-            white-space: pre-wrap; /* Preserve line breaks */
-            word-break: break-word; /* Break long words */
-            font-size: 1em;
-            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-        .success { border: 1px solid var(--tg-theme-link-color); }
-        .error { border: 1px solid var(--tg-theme-destructive-text-color); }
-    </style>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-Y99vK1kKz8hTjGRpph55nD+iO1nk9vAfG9sj9E0k7t2tGJv8zjdRyKxI408GCad" crossorigin="anonymous">
 </head>
 <body>
     <div class="container">
-        <h1>IMEI Check</h1>
-        <input type="text" id="imeiInput" placeholder="Enter IMEI or Serial Number">
-        <button id="checkButton">Check IMEI</button>
-        <div id="loading">Checking...</div>
-        <div id="result"></div>
+        <h1 class="mt-5">IMEI Checker</h1>
+        <div class="mb-3">
+            <label for="imeiInput" class="form-label">Enter IMEI:</label>
+            <input type="text" class="form-control" id="imeiInput" placeholder="Enter IMEI">
+        </div>
+        <button class="btn btn-primary" id="sendButton">Send IMEI</button>
     </div>
 
     <script>
+        // Initialize the Telegram Web App
         Telegram.WebApp.ready();
-        Telegram.WebApp.expand(); // Expand the web app to full screen
+        Telegram.WebApp.expand();
 
-        // Set theme colors
-        document.body.style.backgroundColor = Telegram.WebApp.themeParams.bg_color;
-        document.body.style.color = Telegram.WebApp.themeParams.text_color;
-
-        const imeiInput = document.getElementById('imeiInput');
-        const checkButton = document.getElementById('checkButton');
-        const resultDiv = document.getElementById('result');
-        const loadingDiv = document.getElementById('loading');
-
-        // MainButton will be used for "Show My Balance in Chat"
-        Telegram.WebApp.MainButton.setText("Show My Balance in Chat").show();
-
-        Telegram.WebApp.MainButton.onClick(() => {
-            // Send a different action for balance request
-            Telegram.WebApp.sendData(JSON.stringify({
-                action: 'request_balance'
-            }));
-            Telegram.WebApp.close(); // Close after sending balance request
-        });
-
-        checkButton.addEventListener('click', () => {
-            const imei = imeiInput.value.trim();
-            if (!imei) {
-                displayResult('Please enter an IMEI.', 'error');
-                return;
-            }
-
-            // Disable button and input during check
-            checkButton.disabled = true;
-            imeiInput.disabled = true;
-            loadingDiv.style.display = 'block';
-            resultDiv.innerHTML = ''; // Clear previous results
-            resultDiv.className = ''; // Clear previous styles
-
-            // Send the IMEI to the bot
-            Telegram.WebApp.sendData(JSON.stringify({
+        // Event listener for the Send IMEI button
+        document.getElementById('sendButton').addEventListener('click', function() {
+            const imei = document.getElementById('imeiInput').value;
+            const data = {
                 action: 'check_imei',
                 imei: imei
-            }));
-
-            // Inform user and then close the Web App
-            loadingDiv.innerHTML = 'Sending request. Check your chat with the bot for results...';
-            // You can add a slight delay before closing if you want the message to be seen
-            setTimeout(() => {
-                Telegram.WebApp.close();
-            }, 1500); // Close after 1.5 seconds
-        });
-
-        function displayResult(message, type) {
-            loadingDiv.style.display = 'none';
-            resultDiv.innerHTML = message;
-            resultDiv.className = type; // 'success' or 'error' for styling
-            checkButton.disabled = false;
-            imeiInput.disabled = false;
-        }
-
-        // Initially clear any default text in resultDiv
-        resultDiv.innerHTML = '';
-
-        // Handle Theme changes (already applied via CSS vars, but good to have listener)
-        Telegram.WebApp.onEvent('themeChanged', function() {
-            document.body.style.backgroundColor = Telegram.WebApp.themeParams.bg_color;
-            document.body.style.color = Telegram.WebApp.themeParams.text_color;
-            // Additional styling updates can go here if needed
+            };
+            // Send the data to the Telegram bot
+            Telegram.WebApp.sendData(JSON.stringify(data));
+            // Close the Web App after sending data
+            Telegram.WebApp.close();
         });
     </script>
 </body>
